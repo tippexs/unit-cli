@@ -18,13 +18,13 @@ helpscreen() {
 ## Todo: Display Modules from Mac "/usr/local/lib/unit/modules/" and Linux System
 	echo "USAGE: $COMMAND [options]"
 	echo ""
-	echo " NGINX Unit CLI"
+	echo " 💚 NGINX Unit CLI 💚"
 	echo " Options:"
-    echo " -s | --socket                       # Set Unit Control Socket Path"
-	echo " -c | --config      		           # Get the current UNIT configuration "
-	echo " -C | --raw-config <ObjectPath JSON> # Apply RAW JSON config"
-	echo " -a | --apply <config.json>          # Send a configuration to Unit"
-	echo " -i | --init                         # Create an inital configuration"
+  echo " -s | --socket                         # Set Unit Control Socket Path"
+	echo " -c | --config                         # Get the current UNIT configuration "
+	echo " -C | --raw-config <ObjectPath JSON>   # Apply RAW JSON config"
+	echo " -a | --apply <config.json> [--debug]  # Send a configuration to Unit (AppSpec Format)"
+	echo " -i | --init                           # ✨ Create an inital configuration"
 	echo ""
 	exit 1
 
@@ -36,9 +36,59 @@ getCurrConfig() {
 }
 
 applyConfig() {
-  curl --unix-socket $UNITCTRLSOCK --data-binary @$1 $UNITCTRLURL/config
-}
+  echo "🧙 UNIT Configuration Wizzard "
+  CONFIGFILE_PATH=$1
+  DEBUG_OUTPUT=$2
+  # APPLY Target Configuraiton frist (Applications / Upstreams)
+  echo "✨ Applying UNIT AppSpec Applications / Upstreams Configuration"
 
+  for a in $(jq '.applications | keys | .[]' $1); do
+    APP_CFG=$(jq -r ".applications[$a]" $1)
+    APP_NAME=$(echo $a |sed -e 's/"//g')
+    echo "💫 🛠 Applying Application Configuration for $APP_NAME"
+    APP_CFG=$(jq -r ".applications[$a]" $1)
+    if [ $DEBUG_OUTPUT ]; then echo -n $APP_CFG |jq; fi
+    curl --unix-socket $UNITCTRLSOCK -X PUT --data "$APP_CFG" $UNITCTRLURL/config/applications/$APP_NAME
+
+  done
+
+  {
+   for u in $(jq '.upstreams | keys | .[]' $1 2>/dev/null ); do
+    {
+    UPS_CFG=$(jq -r ".upstreams[$u]" $1)
+    UPS_NAME=$(echo $u |sed -e 's/"//g')
+    echo "✨ Create Upstream for $UPS_NAME"
+    if [ $DEBUG_OUTPUT ]; then echo -n $UPS_CFG|jq; fi
+    curl --unix-socket $UNITCTRLSOCK -X PUT --data "$UPS_CFG" $UNITCTRLURL/config/upstreams/$UPS_NAME
+    } || {echo -n "Error while applying Upstream configuration...."}
+  done
+  } || {}
+  
+  # APPLY Routes Configuraiton next
+  echo "✨ Applying UNIT AppSpec Network Configuration - Linking..."
+  {
+  for r in $(jq '.routes | keys | .[]' $1  2>/dev/null ); do
+  {
+   ROUTE_CFG=$(jq -r ".routes[$r]" $1)
+   ROUTE_NAME=$(echo $r |sed -e 's/"//g')
+   echo "💫 🚦 Applying Route Configuration for $ROUTE_NAME"
+
+   ROUTE_CFG=$(jq -r ".routes[$r]" $1)
+   if [ $DEBUG_OUTPUT ]; then echo -n $ROUTE_CFG |jq; fi
+   curl --unix-socket $UNITCTRLSOCK -X PUT --data "$ROUTE_CFG" $UNITCTRLURL/config/routes/$ROUTE_NAME
+  } || {echo -n "error applying Route configuration..."}
+  done
+  }
+  
+  for k in $(jq '.listeners | keys | .[]' $CONFIGFILE_PATH); do
+    LIST_CFG=$(jq -r ".listeners[$k]" $CONFIGFILE_PATH)
+    LIST_NAME=$(echo $k |sed -e 's/"//g')
+    echo "✨ Create Listener for $LIST_NAME"
+    if [ $DEBUG_OUTPUT ]; then echo -n $LIST_CFG |jq; fi
+    curl --unix-socket $UNITCTRLSOCK -X PUT --data "$LIST_CFG" $UNITCTRLURL/config/listeners/$LIST_NAME
+  done
+
+}
 
 # PHP Only fow now. Will be enhanced soon!
 createAppStack(){
@@ -93,9 +143,13 @@ while [ $# -ge 1 ]; do
 	shift; shift; shift; shift
 	;;
 
-    "-a" | "--apply")
-      applyConfig $2
-      shift; shift
+  "-a" | "--apply")
+      if [[ "$#" -eq 3 && "$3" != "--debug" ]]; then
+        echo "🚨 Unknown flag $3"
+        exit 1;
+      fi
+      applyConfig $2 $3
+      shift; shift; shift
     ;;
 
 	"-i" | "--init")

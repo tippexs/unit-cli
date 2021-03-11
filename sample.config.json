@@ -1,0 +1,44 @@
+{
+    "listeners": {
+        "*:9090": {
+            "pass": "routes/usersrv"
+        }
+    },
+    "routes": {
+        "usersrv": [
+            {
+                "match": {
+                    "uri": [
+                        "*.php",
+                        "*.php/*"
+                    ]
+                },
+                "action": {
+                    "pass": "applications/usersrv/direct"
+                }
+            },
+            {
+                "action": {
+                    "share": "/Users/tstark/workspace/php-user-srv/webroot",
+                    "fallback": {
+                        "pass": "applications/usersrv/index"
+                    }
+                }
+            }
+        ]
+    },
+    "applications": {
+        "usersrv": {
+            "type": "php",
+            "targets": {
+                "direct": {
+                    "root": "/Users/tstark/workspace/php-user-srv/webroot"
+                },
+                "index": {
+                    "root": "/Users/tstark/workspace/php-user-srv/webroot",
+                    "script": "index.php"
+                }
+            }
+        }
+    }
+}

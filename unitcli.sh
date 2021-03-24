@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 
-UNITCTRLSOCK=/usr/local/var/run/unit/control.sock
 UNITCTRLURL="http://localhost"
 COMMAND=${0##*/}
-APP_PATH="/home/tippexs/apps"
 
 preflightCheck() {
 hash jq 2> /dev/null
@@ -12,18 +10,37 @@ hash jq 2> /dev/null
     jq
    exit 1
   fi
+
+hash jo 2> /dev/null
+ if [ $? -ne 0 ]; then
+   echo "$COMMAND: ERROR: 'jo' must be installed"
+   jo
+   exit 1
+ fi
+
+}
+
+sysArch(){
+## Get the runtime environment
+case "$(uname -s)" in
+	"Linux")  UNITCTRLSOCK="/var/run/control.unit.sock" ;;
+	"Darwin") UNITCTRLSOCK="/usr/local/var/run/unit/control.sock" ;;
+	*)  	  echo "Unknow Architecture"; exit 1	
+esac
+
 }
 
 helpscreen() {
 ## Todo: Display Modules from Mac "/usr/local/lib/unit/modules/" and Linux System
 	echo "USAGE: $COMMAND [options]"
 	echo ""
-	echo " 💚 NGINX Unit CLI 💚"
+	echo " 💚 NGINX Unit CLI for $(uname -s) 💚"
+	echo "    current control socket: $UNITCTRLSOCK"
 	echo " Options:"
-  echo " -s | --socket                         # Set Unit Control Socket Path"
+        echo " -s | --socket                         # Set Unit Control Socket Path"
 	echo " -c | --config                         # Get the current UNIT configuration "
 	echo " -C | --raw-config <ObjectPath JSON>   # Apply RAW JSON config"
-	echo " -a | --apply <config.json> [--debug]  # Send a configuration to Unit (AppSpec Format)"
+	echo " -a | --apply <config.json> [--debug]  # Send a configuration to Unit uspec.json (Unit-Spec Format)"
 	echo " -i | --init                           # ✨ Create an inital configuration"
 	echo ""
 	exit 1
@@ -40,7 +57,7 @@ applyConfig() {
   CONFIGFILE_PATH=$1
   DEBUG_OUTPUT=$2
   # APPLY Target Configuraiton frist (Applications / Upstreams)
-  echo "✨ Applying UNIT AppSpec Applications / Upstreams Configuration"
+  echo "✨ Applying UNIT Specification: Applications / Upstreams Configuration"
 
   for a in $(jq '.applications | keys | .[]' $1); do
     APP_CFG=$(jq -r ".applications[$a]" $1)
@@ -118,9 +135,12 @@ applyRawConfig() {
 }
 
 
-# ###### MAIN Program
+# ###### MAIN Program ####### #
 
+# Check dependencies
 preflightCheck
+# Set Environment
+sysArch
 
 if [ $# -lt 1 ]; then
   helpscreen

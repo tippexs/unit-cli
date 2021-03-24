@@ -1,10 +1,9 @@
 # NGINX Unit CLI
 
 
-## Apply a Application-Spec (AppSpec) json config file
+## Apply an Unit-Specification JSON-File
 
-
-````
+```json
 {
     "listeners": {
         "127.0.0.1:8090": {
